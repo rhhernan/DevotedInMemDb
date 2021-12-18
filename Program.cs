@@ -18,10 +18,10 @@
                 input = Console.ReadLine();
                 continue;
             }
-
+            
             //split the input, and remove any blank array spaces
             var split = input.Split(' ').Where(s => !String.IsNullOrWhiteSpace(s)).ToArray();
-
+            
             switch (split[0].ToUpper())
             {
                 case Commands.SET:
@@ -37,6 +37,7 @@
                     if (split.Length != 2)
                     {
                         IncorrectArguments(Commands.GET, split.Length, 2);
+                        break;
                     }
                     //I set null here to not hardcode it in the Get function
                     Console.WriteLine(database.Get(split[1]) ?? "NULL");
@@ -46,6 +47,7 @@
                     if (split.Length != 2)
                     {
                         IncorrectArguments(Commands.DELETE, split.Length, 2);
+                        break;
                     }
                     database.Delete(split[1]);
                     break;
@@ -53,6 +55,7 @@
                     if (split.Length != 2)
                     {
                         IncorrectArguments(Commands.COUNT, split.Length, 2);
+                        break;
                     }
                     Console.WriteLine(database.Count(split[1]));
                     break;
