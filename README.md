@@ -6,6 +6,7 @@
 
 ### To build the application
 1. Have .NET SDK installed to provide the dotnet cli
+    - https://dotnet.microsoft.com/en-us/download/dotnet/6.0
 2. Navigate to the project folder and open a terminal
 3. Run the command
     - dotnet build DevotedInMemDb.csproj --runtime {your run time here}
