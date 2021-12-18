@@ -1,13 +1,13 @@
 public sealed class InMemDb
 {
     //We have a master transaction for the root database
-    private Transaction MasterTransaction;
+    private MasterTransaction MasterTransaction;
     //We keep track of all other transactions here
     private List<Transaction> SubTransactions;
 
     public InMemDb()
     {
-        MasterTransaction = new Transaction();
+        MasterTransaction = new MasterTransaction();
         SubTransactions = new List<Transaction>();
     }
 
@@ -29,8 +29,22 @@ public sealed class InMemDb
     /// <returns></returns>
     public string? Get(string key)
     {
-        var curTransaction = GetCurrentTransaction();
-        return curTransaction.Get(key);
+        var val = MasterTransaction.Get(key);
+
+        if(!SubTransactions.Any())
+            return val?.Value;
+
+        //traverse subtransactions in reverse to get most updated version
+        for(var i = SubTransactions.Count - 1; i >= 0; i--)
+        {
+            var transaction = SubTransactions[i];
+            var tVal = transaction.Get(key);
+            if(tVal != null)
+                return tVal?.Value;
+        }
+
+        //if none of the transactions have it then just return
+        return val?.Value;
     }
 
     /// <summary>
@@ -50,32 +64,53 @@ public sealed class InMemDb
     /// <returns>Count of values</returns>
     public int Count(string value)
     {
-        throw new NotImplementedException();
+        if (string.IsNullOrWhiteSpace(value))
+            return 0;
+
+        var rawData = MasterTransaction.GetData();
+        if (SubTransactions.Any())
+        {
+            foreach(var transaction in SubTransactions)
+            {
+                rawData = transaction.PeekChanges(rawData);
+            }
+        }
+
+        return rawData.Where(x => x.Value == value).Count();
     }
 
     public void CreateTransaction()
     {
-        SubTransactions.Insert(0, new Transaction());
+        SubTransactions.Add(new Transaction());
     }
 
     public void RollbackTransaction()
     {
-        SubTransactions.RemoveAt(0);
-    }
-
-    public void Commit()
-    {
-        //if there's no sub transactions then we don't care since our master transaction contains our base db
         if(!SubTransactions.Any())
             return;
+        SubTransactions.RemoveAt(SubTransactions.Count - 1);
+    }
 
-        Dictionary<string, string> result = new Dictionary<string, string>();
-        foreach(var transaction in SubTransactions)
+    //we just make Commit return a value for unit testing
+    public Dictionary<string, string> Commit()
+    {
+        //if there's no sub transactions then we don't care since our master transaction contains our base db
+        if (!SubTransactions.Any())
+            return MasterTransaction.GetData();
+
+        Dictionary<string, string> result = MasterTransaction.GetData();
+        foreach (var transaction in SubTransactions)
         {
             result = transaction.MergeChanges(result);
         }
 
-        MasterTransaction.MergeChanges(result);
+        //reset subtransactions and let GC take care of the clean up
+        SubTransactions = new List<Transaction>();
+
+        //pass the merged to the master transaction
+        MasterTransaction.UpdateData(result);
+
+        return result;
     }
 
     /// <summary>
@@ -88,27 +123,27 @@ public sealed class InMemDb
         var defaultVal = MasterTransaction.Get(key);
         if (!SubTransactions.Any())
         {
-            return defaultVal;
+            return defaultVal?.Value;
         }
         else
         {
             //since we store the transactions with the newest first, we just iterate through them all until we find the key
-            foreach(var transaction in SubTransactions)
+            foreach (var transaction in SubTransactions)
             {
                 //Check if the transaction has modified the value
                 var value = transaction.Get(key);
-                if(value != null)
-                    return value;
+                if (value != null)
+                    return value?.Value;
             }
-            return defaultVal;
+            return defaultVal?.Value;
         }
     }
 
     private Transaction GetCurrentTransaction()
     {
-        //return the first transaction since that's the latest
-        if(SubTransactions.Any())
-            return SubTransactions[0];
+        //return the last transaction since that's the latest
+        if (SubTransactions.Any())
+            return SubTransactions.Last();
         return MasterTransaction;
     }
 }
